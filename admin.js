@@ -166,9 +166,11 @@ function showDashboard() {
     document.getElementById('dashboard-page').classList.remove('hidden');
     document.getElementById('current-admin-name').textContent = currentAdmin.name;
     document.getElementById('current-admin-role').textContent = currentAdmin.role === 'super_admin' ? '超级管理员' : '管理员';
-    // 仅超级管理员显示手动分配下拉框
+    // 超级管理员登录自动显示手动分配下拉
     if (currentAdmin.role === 'super_admin') {
         document.getElementById('admin-assign-container').classList.remove('hidden');
+    } else {
+        document.getElementById('admin-assign-container').classList.add('hidden');
     }
     loadApplications();
 }
@@ -393,7 +395,7 @@ function getSubStatusText(subStatus) {
     return map[subStatus] || '无';
 }
 
-// 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制）
+// 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制 + 超级管理员分配下拉）
 async function openDetail(id) {
     currentApplicationId = id;
     try {
@@ -412,22 +414,22 @@ async function openDetail(id) {
         document.getElementById('detail-city').textContent = data.city_state || '-';
         document.getElementById('detail-phone').textContent = data.phone_number || '-';
         document.getElementById('detail-telegram').textContent = data.telegram_contact || '-';
-        document.getElementById('detail-people').textContent = data.people_count || '-';
-        document.getElementById('detail-about').textContent = data.about_yourself || '-';
+        document.getElementById('detail-people').textContent = data.people || '-';
+        document.getElementById('detail-about').textContent = data.about || '-';
         const submitTime = data.submitted_at ? new Date(data.submitted_at).toLocaleString('zh-CN') : '-';
         document.getElementById('detail-submitted').textContent = submitTime;
 
-        // 显示当前分配人
+        // 当前分配人展示
         if (isUnassigned) {
             document.getElementById('detail-assign-target').textContent = "无（未分配）";
         } else {
             document.getElementById('detail-assign-target').textContent = data.assigned_admin;
         }
 
-        // 动态切换分配/取消按钮
+        // 分配/取消按钮显隐
         const btnAssignSelf = document.getElementById('btn-assign-self');
         const btnCancelAssign = document.getElementById('btn-cancel-assign');
-        if (isMine || currentAdmin.role === 'super_admin') {
+        if (isMine) {
             btnAssignSelf.classList.add('hidden');
             btnCancelAssign.classList.remove('hidden');
         } else if (isUnassigned) {
@@ -438,7 +440,7 @@ async function openDetail(id) {
             btnCancelAssign.classList.add('hidden');
         }
 
-        // 移入归档按钮：仅未通过状态显示
+        // 移入归档按钮：仅未通过+可编辑时显示
         const btnArchive = document.getElementById('btn-move-archive');
         if(isRejected && canEdit) {
             btnArchive.classList.remove('hidden');
@@ -446,47 +448,47 @@ async function openDetail(id) {
             btnArchive.classList.add('hidden');
         }
 
-        // 渲染要求确认列表
+        // 渲染需求确认列表
         const reqWrap = document.getElementById('detail-requirements');
         const reqMap = {
-            'personal-purchases': '个人每日充值 ₹30,000',
-            'recruitment': '每日邀请1-3名新用户',
-            'team-bonus': '团队每日流水20万，奖励0.5%',
-            'bonus-cap': '单日奖励上限 ₹1,000',
-            'income-target': '全部达标月入可达 ₹80,000+'
+            'personal-purchases': '个人每日充值 ₹30000',
+            'recruitment': '每日拉新1-3人',
+            'team-bonus': '团队日流水20万，提成分成',
+            'bonus-cap': '单日最高提成 ₹1000',
+            'income-target': '达标月收入可达 ₹80000+'
         };
-        if (data.confirm_requirements && data.confirm_requirements.length > 0) {
-            reqWrap.innerHTML = data.confirm_requirements.map(r => `
+        if (data.requirements && data.requirements.length > 0) {
+            reqWrap.innerHTML = data.requirements.map(r => `
                 <div class="flex items-center">
                     <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                     <span class="text-gray-700">${reqMap[r] || r}</span>
                 </div>`).join('');
-        } else reqWrap.innerHTML = '<p class="text-gray-400">未确认</p>';
+        } else reqWrap.innerHTML = '<p class="text-gray-400">无需求记录</p>';
 
-        // 获客方式标签渲染
+        // 获客渠道标签
         const acqWrap = document.getElementById('detail-acquisition');
-        const acqMap = { 'face-to-face': '线下/面对面', 'online-groups': '线上社群', 'both': '两者都有', 'other': '其他' };
-        if (data.user_acquisition && data.user_acquisition.length > 0) {
-            acqWrap.innerHTML = data.user_acquisition.map(a => `
-                <span class="inline-flex px-3 py-1 text-sm font-medium bg-primary-100 text-primary-700 rounded-full">${acqMap[a] || a}</span>`).join('');
-        } else acqWrap.innerHTML = '<p class="text-gray-400">-</p>';
+        const acqMap = { 'face-to-face': '线下地推', 'online': '线上社群', 'referral': '老客推荐', 'other': '其他渠道' };
+        if (data.acquisition && data.acquisition.length > 0) {
+            acqWrap.innerHTML = data.acquisition.map(a => `
+                <span class="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full">${acqMap[a] || a}</span>`).join('');
+        } else acqWrap.innerHTML = '<p class="text-gray-400">无渠道记录</p>';
 
-        // 其他信息区块控制显示
+        // 其他信息
         if (data.other_info) {
             document.getElementById('other-info-section').classList.remove('hidden');
             document.getElementById('detail-other').textContent = data.other_info;
         } else document.getElementById('other-info-section').classList.add('hidden');
 
-        // 表单下拉赋值
+        // 表单赋值
         document.getElementById('detail-status').value = data.status || 'pending';
         document.getElementById('detail-sub-status').value = data.sub_status || '';
         document.getElementById('detail-notes').value = data.admin_notes || '';
-        document.getElementById('detail-assigned-admin').value = data.assigned_admin || selfName;
+        document.getElementById('detail-assigned-admin').value = data.assigned_admin || '';
         onStatusChange();
 
-        // 权限控制编辑区/仅查看提示
+        // 权限控制编辑区域
         if (canEdit) {
             document.getElementById('status-management-section').classList.remove('hidden');
             document.getElementById('no-permission-section').classList.add('hidden');
@@ -522,8 +524,7 @@ async function saveStatus() {
     if (!currentApplicationId) return;
     const saveBtn = document.getElementById('save-btn');
     const originText = saveBtn.textContent;
-    // 二次确认弹窗拦截
-    const confirmRes = confirm('确认保存当前状态、备注全部修改？确认后数据永久更新');
+    const confirmRes = confirm('确认保存当前状态、备注、分配管理员全部修改？数据将永久更新');
     if (!confirmRes) return;
     saveBtn.disabled = true;
     saveBtn.textContent = '保存中...';
@@ -531,15 +532,18 @@ async function saveStatus() {
         const status = document.getElementById('detail-status').value;
         const subStatus = document.getElementById('detail-sub-status').value || null;
         const notes = document.getElementById('detail-notes').value || null;
-        const assignAdmin = document.getElementById('detail-assigned-admin').value;
+        // 超级管理员读取手动分配下拉
+        let newAssign = currentApplicationAssignedAdmin;
+        if (currentAdmin.role === 'super_admin') {
+            newAssign = document.getElementById('detail-assigned-admin').value || null;
+        }
         const updateData = {
             status,
             sub_status: subStatus,
             admin_notes: notes,
+            assigned_admin: newAssign,
             status_updated_at: new Date().toISOString()
         };
-        // 仅超级管理员允许修改分配人字段
-        if (currentAdmin.role === 'super_admin') updateData.assigned_admin = assignAdmin;
         const { error } = await supabaseClient.from(TABLE_NAME).update(updateData).eq('id', currentApplicationId);
         if (error) throw error;
         alert('修改保存成功！');
