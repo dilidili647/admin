@@ -1,0 +1,21 @@
+/* admin.css 辅助样式 */
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+/* 自定义组件类（可选，方便复用） */
+.btn-primary {
+    @apply bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-all text-sm font-medium px-4 py-2;
+}
+.btn-green {
+    @apply bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium px-6 py-2;
+}
+.btn-gray-outline {
+    @apply border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium px-6 py-2;
+}
+.input-base {
+    @apply w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-primary-500 focus:ring-2 focus:ring-primary-100 outline-none;
+}
+.card-shadow {
+    @apply bg-white rounded-xl shadow-sm;
+}
