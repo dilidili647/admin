@@ -396,6 +396,7 @@ function getSubStatusText(subStatus) {
 }
 
 // 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制 + 超级管理员分配下拉）
+// 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制 + 超级管理员分配下拉）
 async function openDetail(id) {
     currentApplicationId = id;
     try {
@@ -414,8 +415,11 @@ async function openDetail(id) {
         document.getElementById('detail-city').textContent = data.city_state || '-';
         document.getElementById('detail-phone').textContent = data.phone_number || '-';
         document.getElementById('detail-telegram').textContent = data.telegram_contact || '-';
-        document.getElementById('detail-people').textContent = data.people || '-';
-        document.getElementById('detail-about').textContent = data.about || '-';
+        // ========== 修复1：预计带人数量 people_count ==========
+        document.getElementById('detail-people').textContent = data.people_count || '-';
+        // ========== 修复2：自我介绍 about_yourself ==========
+        document.getElementById('detail-about').textContent = data.about_yourself || '-';
+        
         const submitTime = data.submitted_at ? new Date(data.submitted_at).toLocaleString('zh-CN') : '-';
         document.getElementById('detail-submitted').textContent = submitTime;
 
@@ -448,7 +452,7 @@ async function openDetail(id) {
             btnArchive.classList.add('hidden');
         }
 
-        // 渲染需求确认列表
+        // ========== 修复3：渲染需求确认勾选 confirm_requirements ==========
         const reqWrap = document.getElementById('detail-requirements');
         const reqMap = {
             'personal-purchases': '个人每日充值 ₹30000',
@@ -457,21 +461,26 @@ async function openDetail(id) {
             'bonus-cap': '单日最高提成 ₹1000',
             'income-target': '达标月收入可达 ₹80000+'
         };
-        if (data.requirements && data.requirements.length > 0) {
-            reqWrap.innerHTML = data.requirements.map(r => `
+        if (data.confirm_requirements && Array.isArray(data.confirm_requirements) && data.confirm_requirements.length > 0) {
+            reqWrap.innerHTML = data.confirm_requirements.map(r => `
                 <div class="flex items-center">
                     <svg class="w-5 h-5 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
                     <span class="text-gray-700">${reqMap[r] || r}</span>
                 </div>`).join('');
-        } else reqWrap.innerHTML = '<p class="text-gray-400">无需求记录</p>';
+        } else reqWrap.innerHTML = '<p class="text-gray-400">无需求确认记录</p>';
 
-        // 获客渠道标签
+        // ========== 修复4：获客渠道 user_acquisition ==========
         const acqWrap = document.getElementById('detail-acquisition');
-        const acqMap = { 'face-to-face': '线下地推', 'online': '线上社群', 'referral': '老客推荐', 'other': '其他渠道' };
-        if (data.acquisition && data.acquisition.length > 0) {
-            acqWrap.innerHTML = data.acquisition.map(a => `
+        const acqMap = { 
+            'face-to-face': '线下地推', 
+            'online-groups': '线上社群', 
+            'both': '线上线下同时做',
+            'other': '其他渠道' 
+        };
+        if (data.user_acquisition && Array.isArray(data.user_acquisition) && data.user_acquisition.length > 0) {
+            acqWrap.innerHTML = data.user_acquisition.map(a => `
                 <span class="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full">${acqMap[a] || a}</span>`).join('');
         } else acqWrap.innerHTML = '<p class="text-gray-400">无渠道记录</p>';
 
