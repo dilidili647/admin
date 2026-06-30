@@ -247,6 +247,7 @@ async function loadApplications() {
         updateStats(data);
         // 循环渲染表格行
         data.forEach(app => {
+            const workLabel = data.work_type === 'fulltime' ? '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">全职</span>' : '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">兼职</span>';
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors';
             const statusColor = getStatusColor(app.status);
