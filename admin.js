@@ -23,7 +23,6 @@ let currentTab = 'normal'; // normal=普通列表 archive=归档列表
 // 页面标签切换
 function switchTab(tabName) {
     currentTab = tabName;
-    // 切换标签样式
     document.getElementById('tab-normal').classList.toggle('border-b-2', tabName === 'normal');
     document.getElementById('tab-normal').classList.toggle('border-primary-500', tabName === 'normal');
     document.getElementById('tab-normal').classList.toggle('text-primary-600', tabName === 'normal');
@@ -34,7 +33,6 @@ function switchTab(tabName) {
     document.getElementById('tab-archive').classList.toggle('text-primary-600', tabName === 'archive');
     document.getElementById('tab-archive').classList.toggle('text-gray-500', tabName !== 'archive');
 
-    // 切换容器显示隐藏
     document.getElementById('filter-normal-wrap').classList.toggle('hidden', tabName !== 'normal');
     document.querySelector('.overflow-x-auto').parentElement.classList.toggle('hidden', tabName !== 'normal');
     document.getElementById('empty-state').classList.toggle('hidden', tabName !== 'normal');
@@ -99,7 +97,7 @@ async function cancelAssign() {
 // 3. 移入归档库（仅rejected状态可用）
 async function moveToArchive() {
     if (!currentApplicationId) return;
-    const confirmRes = confirm('确认移入归档库？该人员72小时后将被系统自动永久删除，可手动捞回');
+    const confirmRes = confirm('确认移入归档库？已关闭自动72h删除，数据永久保留');
     if (!confirmRes) return;
     try {
         const { error } = await supabaseClient
@@ -121,7 +119,7 @@ async function moveToArchive() {
 
 // 4. 归档捞回普通列表
 async function pullOutFromArchive(appId) {
-    const confirmRes = confirm('确认将此人从归档库捞回普通申请列表？不再自动删除');
+    const confirmRes = confirm('确认将此人从归档库捞回普通申请列表？');
     if (!confirmRes) return;
     try {
         const { error } = await supabaseClient
@@ -166,7 +164,6 @@ function showDashboard() {
     document.getElementById('dashboard-page').classList.remove('hidden');
     document.getElementById('current-admin-name').textContent = currentAdmin.name;
     document.getElementById('current-admin-role').textContent = currentAdmin.role === 'super_admin' ? '超级管理员' : '管理员';
-    // 超级管理员登录自动显示手动分配下拉
     if (currentAdmin.role === 'super_admin') {
         document.getElementById('admin-assign-container').classList.remove('hidden');
     } else {
@@ -208,30 +205,23 @@ async function loadApplications() {
     loadingState.classList.remove('hidden');
     try {
         let query = supabaseClient.from(TABLE_NAME).select('*').order('submitted_at', { ascending: false });
-        // 排除归档数据（archived_at不为空的不展示在普通列表）
         query = query.is('archived_at', null);
 
-        // 1.分配管理员筛选
         const adminFilter = document.getElementById('filter-admin').value;
         if (adminFilter !== 'all') {
             if (adminFilter === '') query = query.is('assigned_admin', null);
             else query = query.eq('assigned_admin', adminFilter);
         }
-        // 2.主状态筛选
         const mainStatus = document.getElementById('filter-main-status').value;
         if (mainStatus !== 'all') query = query.eq('status', mainStatus);
-        // 3.细分状态筛选
         const subStatus = document.getElementById('filter-sub-status').value;
         if (subStatus !== 'all') query = query.eq('sub_status', subStatus);
-        // 4.城市地区模糊筛选
         const cityKey = document.getElementById('filter-city').value.trim();
         if (cityKey) query = query.ilike('city_state', `%${cityKey}%`);
-        // 5.起止日期筛选
         const dateStart = document.getElementById('filter-date-start').value;
         const dateEnd = document.getElementById('filter-date-end').value;
         if(dateStart) query = query.gte('submitted_at', dateStart);
         if(dateEnd) query = query.lte('submitted_at', dateEnd + ' 23:59:59');
-        // 6.关键词模糊搜索（姓名/电话/Telegram）
         const keyword = document.getElementById('filter-keyword').value.trim();
         if (keyword) {
             query = query.or(`full_name.ilike.%${keyword}%,phone_number.ilike.%${keyword}%,telegram_contact.ilike.%${keyword}%`);
@@ -245,9 +235,7 @@ async function loadApplications() {
             return;
         }
         updateStats(data);
-        // 循环渲染表格行
         data.forEach(app => {
-            const workLabel = data.work_type === 'fulltime' ? '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">全职</span>' : '<span class="bg-green-100 text-green-700 px-2 py-1 rounded text-xs">兼职</span>';
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50 transition-colors';
             const statusColor = getStatusColor(app.status);
@@ -256,6 +244,17 @@ async function loadApplications() {
             }) : '-';
             const isUnassigned = app.assigned_admin === null || app.assigned_admin === "";
             const canEditRow = currentAdmin.role === 'super_admin' || app.assigned_admin === currentAdmin.username || isUnassigned;
+            
+            // 工作类型标签
+            let workTypeBadge = '';
+            if(app.work_type === 'fulltime'){
+                workTypeBadge = '<span class="inline-flex px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded">全职</span>';
+            }else if(app.work_type === 'parttime'){
+                workTypeBadge = '<span class="inline-flex px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded">兼职</span>';
+            }else{
+                workTypeBadge = '<span class="text-gray-400">-</span>';
+            }
+
             row.innerHTML = `
                 <td class="px-6 py-4"><p class="font-medium">${escapeHtml(app.full_name)}</p></td>
                 <td class="px-6 py-4 text-gray-600">${escapeHtml(app.city_state || '-')}</td>
@@ -266,6 +265,7 @@ async function loadApplications() {
                         ${escapeHtml(app.assigned_admin || '未分配')}
                     </span>
                 </td>
+                <td class="px-6 py-4">${workTypeBadge}</td>
                 <td class="px-6 py-4">
                     <span class="inline-flex px-2 py-1 text-xs font-medium ${statusColor.bg} ${statusColor.text} rounded">
                         ${getStatusLabel(app.status, app.sub_status)}
@@ -283,7 +283,7 @@ async function loadApplications() {
     } catch (error) {
         console.error('加载列表失败：', error);
         loadingState.classList.add('hidden');
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-red-500">加载数据失败</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-8 text-center text-red-500">加载数据失败</td></tr>`;
     }
 }
 
@@ -303,7 +303,6 @@ async function loadArchiveList() {
             .not('archived_at', 'is', null)
             .order('archived_at', { ascending: false });
         
-        // 归档筛选
         const cityKey = document.getElementById('archive-filter-city').value.trim();
         const keyword = document.getElementById('archive-filter-keyword').value.trim();
         const startDate = document.getElementById('archive-filter-start').value;
@@ -318,30 +317,30 @@ async function loadArchiveList() {
             emptyTip.classList.remove('hidden');
             return;
         }
-        // 渲染归档表格
         data.forEach(app => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-gray-50';
-            // 计算剩余删除时间
             const archiveTime = new Date(app.archived_at);
-            const expireTime = new Date(archiveTime.getTime() + 72 * 60 * 60 * 1000);
-            const now = new Date();
-            let remainText = '已过期待清理';
-            if(expireTime > now) {
-                const diffMs = expireTime - now;
-                const h = Math.floor(diffMs / 3600000);
-                const m = Math.floor((diffMs % 3600000)/60000);
-                remainText = `剩余 ${h}小时${m}分钟`;
-            }
-            const subLabel = getSubStatusText(app.sub_status);
             const archiveDate = archiveTime.toLocaleString('zh-CN');
+            const subLabel = getSubStatusText(app.sub_status);
+            
+            let workTypeBadge = '';
+            if(app.work_type === 'fulltime'){
+                workTypeBadge = '<span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs">全职</span>';
+            }else if(app.work_type === 'parttime'){
+                workTypeBadge = '<span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs">兼职</span>';
+            }else{
+                workTypeBadge = '-';
+            }
+
             row.innerHTML = `
                 <td class="px-6 py-4">${escapeHtml(app.full_name)}</td>
                 <td class="px-6 py-4">${escapeHtml(app.city_state || '-')}</td>
                 <td class="px-6 py-4">${escapeHtml(app.phone_number || '-')}</td>
+                <td class="px-6 py-4">${workTypeBadge}</td>
                 <td class="px-6 py-4">${subLabel}</td>
                 <td class="px-6 py-4 text-sm">${archiveDate}</td>
-                <td class="px-6 py-4 text-sm text-orange-600">${remainText}</td>
+                <td class="px-6 py-4 text-gray-600 text-sm">永久保留（已关闭自动删除）</td>
                 <td class="px-6 py-4">
                     <button onclick="openDetail(${app.id})" class="text-primary-600 mr-3">查看详情</button>
                     <button onclick="pullOutFromArchive(${app.id})" class="text-green-600">捞回列表</button>
@@ -351,7 +350,7 @@ async function loadArchiveList() {
         });
     } catch(err) {
         loadingTip.classList.add('hidden');
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500">加载归档失败</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-red-500">加载归档失败</td></tr>`;
     }
 }
 
@@ -396,8 +395,7 @@ function getSubStatusText(subStatus) {
     return map[subStatus] || '无';
 }
 
-// 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制 + 超级管理员分配下拉）
-// 打开详情弹窗（动态切换认领/取消按钮 + 移入归档按钮显示控制 + 超级管理员分配下拉）
+// 打开详情弹窗（修复缺失字段 + 新增工作类型展示）
 async function openDetail(id) {
     currentApplicationId = id;
     try {
@@ -410,15 +408,21 @@ async function openDetail(id) {
         const canEdit = currentAdmin.role === 'super_admin' || isMine || isUnassigned;
         const isRejected = data.status === 'rejected';
 
-        // 填充基础信息
+        // 基础信息
         document.getElementById('modal-name').textContent = data.full_name;
         document.getElementById('detail-full-name').textContent = data.full_name;
         document.getElementById('detail-city').textContent = data.city_state || '-';
         document.getElementById('detail-phone').textContent = data.phone_number || '-';
         document.getElementById('detail-telegram').textContent = data.telegram_contact || '-';
-        // ========== 修复1：预计带人数量 people_count ==========
+
+        // 新增：展示全职/兼职
+        let workTypeText = '';
+        if(data.work_type === 'fulltime') workTypeText = 'Full Time 全职';
+        else if(data.work_type === 'parttime') workTypeText = 'Part Time 兼职';
+        else workTypeText = '未选择';
+        document.getElementById('detail-worktype').textContent = workTypeText;
+
         document.getElementById('detail-people').textContent = data.people_count || '-';
-        // ========== 修复2：自我介绍 about_yourself ==========
         document.getElementById('detail-about').textContent = data.about_yourself || '-';
         
         const submitTime = data.submitted_at ? new Date(data.submitted_at).toLocaleString('zh-CN') : '-';
@@ -445,7 +449,7 @@ async function openDetail(id) {
             btnCancelAssign.classList.add('hidden');
         }
 
-        // 移入归档按钮：仅未通过+可编辑时显示
+        // 移入归档按钮
         const btnArchive = document.getElementById('btn-move-archive');
         if(isRejected && canEdit) {
             btnArchive.classList.remove('hidden');
@@ -453,7 +457,7 @@ async function openDetail(id) {
             btnArchive.classList.add('hidden');
         }
 
-        // ========== 修复3：渲染需求确认勾选 confirm_requirements ==========
+        // 需求确认列表 confirm_requirements
         const reqWrap = document.getElementById('detail-requirements');
         const reqMap = {
             'personal-purchases': '个人每日充值 ₹30000',
@@ -470,9 +474,9 @@ async function openDetail(id) {
                     </svg>
                     <span class="text-gray-700">${reqMap[r] || r}</span>
                 </div>`).join('');
-        } else reqWrap.innerHTML = '<p class="text-gray-400">无需求确认记录</p>';
+        } else reqWrap.innerHTML = '<p class="text-gray-400">无需求确认记录（兼职用户）</p>';
 
-        // ========== 修复4：获客渠道 user_acquisition ==========
+        // 获客渠道 user_acquisition
         const acqWrap = document.getElementById('detail-acquisition');
         const acqMap = { 
             'face-to-face': '线下地推', 
@@ -483,7 +487,7 @@ async function openDetail(id) {
         if (data.user_acquisition && Array.isArray(data.user_acquisition) && data.user_acquisition.length > 0) {
             acqWrap.innerHTML = data.user_acquisition.map(a => `
                 <span class="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-full">${acqMap[a] || a}</span>`).join('');
-        } else acqWrap.innerHTML = '<p class="text-gray-400">无渠道记录</p>';
+        } else acqWrap.innerHTML = '<p class="text-gray-400">无渠道记录（兼职用户）</p>';
 
         // 其他信息
         if (data.other_info) {
@@ -491,14 +495,14 @@ async function openDetail(id) {
             document.getElementById('detail-other').textContent = data.other_info;
         } else document.getElementById('other-info-section').classList.add('hidden');
 
-        // 表单赋值
+        // 编辑表单赋值
         document.getElementById('detail-status').value = data.status || 'pending';
         document.getElementById('detail-sub-status').value = data.sub_status || '';
         document.getElementById('detail-notes').value = data.admin_notes || '';
         document.getElementById('detail-assigned-admin').value = data.assigned_admin || '';
         onStatusChange();
 
-        // 权限控制编辑区域
+        // 编辑权限控制
         if (canEdit) {
             document.getElementById('status-management-section').classList.remove('hidden');
             document.getElementById('no-permission-section').classList.add('hidden');
@@ -529,7 +533,7 @@ function onStatusChange() {
     status === 'approved' ? subWrap.classList.remove('hidden') : subWrap.classList.add('hidden');
 }
 
-// 保存修改（带二次确认弹窗，不点确认不提交）
+// 保存修改
 async function saveStatus() {
     if (!currentApplicationId) return;
     const saveBtn = document.getElementById('save-btn');
@@ -542,7 +546,6 @@ async function saveStatus() {
         const status = document.getElementById('detail-status').value;
         const subStatus = document.getElementById('detail-sub-status').value || null;
         const notes = document.getElementById('detail-notes').value || null;
-        // 超级管理员读取手动分配下拉
         let newAssign = currentApplicationAssignedAdmin;
         if (currentAdmin.role === 'super_admin') {
             newAssign = document.getElementById('detail-assigned-admin').value || null;
